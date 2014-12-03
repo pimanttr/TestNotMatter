@@ -44,7 +44,7 @@ function Init(){
  }
 
 function addObjectsToScene(){
-  var path = "textures/cube/";
+  var path = "resource/";
   var format = '.jpg';
   var urls = [
       path + 'posx' + format,
