@@ -1,47 +1,53 @@
  var windowWidth = window.innerWidth, windowHeight = window.innerHeight;
- var camera,renderer,scene;
+ var startTime;
+ var camera,renderer,scene,ball, noiseBlend;
  window.onload = function (){
     console.log("onload");
     Init();
     animate();
  };
 
-function Init(){
-        scene = new THREE.Scene();
-  
-       //setup camera
- 		camera = new LeiaCamera();
-        camera.position.copy(new THREE.Vector3(_camPosition.x, _camPosition.y, _camPosition.z));
-        camera.lookAt(new THREE.Vector3(_tarPosition.x, _tarPosition.y, _tarPosition.z));
-        scene.add(camera);
-  
-       //setup rendering parameter
- 		renderer = new LeiaWebGLRenderer({
-         antialias:true, 
- 		renderMode: _renderMode, 
-		shaderMode: _nShaderMode,
-		colorMode : _colorMode,
-		devicePixelRatio: 1 
-        } );
- 		renderer.Leia_setSize( windowWidth, windowHeight );
- 		document.body.appendChild( renderer.domElement );
-  
-       //add object to Scene
-        addObjectsToScene();
-  
-        //add Light
- 		addLights();
-  
-        //add Gyro Monitor
-        //addGyroMonitor();
- }
+function Init() {
+  scene = new THREE.Scene();
+  startTime = Date.now();
 
- function animate() 
- {
- 	requestAnimationFrame( animate );
-    renderer.setClearColor(new THREE.Color().setRGB(0.0, 0.0, 0.0)); 
-	renderer.Leia_render(scene, camera,undefined,undefined,_holoScreenSize,_camFov,_messageFlag);
- }
+  //setup camera
+  camera = new LeiaCamera();
+  camera.position.copy(new THREE.Vector3(_camPosition.x, _camPosition.y, _camPosition.z));
+  camera.lookAt(new THREE.Vector3(_tarPosition.x, _tarPosition.y, _tarPosition.z));
+  scene.add(camera);
+
+  //setup rendering parameter
+  renderer = new LeiaWebGLRenderer({
+    antialias:true, 
+           renderMode: _renderMode, 
+           shaderMode: _nShaderMode,
+           colorMode : _colorMode,
+           devicePixelRatio: 1 
+  } );
+  renderer.Leia_setSize( windowWidth, windowHeight );
+  document.body.appendChild( renderer.domElement );
+
+  //add object to Scene
+  addObjectsToScene();
+
+  //add Light
+  addLights();
+
+  //add Gyro Monitor
+  //addGyroMonitor();
+}
+
+function animate() {
+  requestAnimationFrame( animate );
+  var time = (Date.now() - startTime)/1000;
+  var rotation = new THREE.Euler(0, time, 0, 'XYZ');
+  ball.setRotationFromEuler(rotation);
+  var x = time/5;
+  noiseBlend.value = Math.abs((x % 2) - 1);
+  renderer.setClearColor(new THREE.Color().setRGB(0.0, 0.0, 0.0)); 
+  renderer.Leia_render(scene, camera,undefined,undefined,_holoScreenSize,_camFov,_messageFlag);
+}
 
 function addObjectsToScene(){
   var path = "resource/";
@@ -76,37 +82,51 @@ function addObjectsToScene(){
     "}\n"
   });
   skyMaterial.side = THREE.BackSide;
-  var sky = new THREE.Mesh(new THREE.SphereGeometry(25, 30, 30), skyMaterial);
-  sky.translateZ(10);
+  var sky = new THREE.Mesh(new THREE.SphereGeometry(50, 30, 30), skyMaterial);
   scene.add(sky);
 
   var irisTex = THREE.ImageUtils.loadTexture("resource/iris.png");
   irisTex.format = THREE.RGBAFormat;
+  var noiseTex = THREE.ImageUtils.loadTexture("resource/perlin_noise.png");
+  noiseTex.format = THREE.RGBFormat;
+  noiseTex.wrapS = THREE.RepeatWrapping;
+  noiseTex.wrapT = THREE.RepeatWrapping;
   vs = "varying vec3 incident;\n" +
     "varying vec3 ref;\n" +
     "varying vec3 f_normal;\n" +
+    "varying vec2 f_uv;\n" +
     "void main() {\n" +
     "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n" +
     "  vec4 wpos = modelMatrix * vec4( position, 1.0 );\n" +
     "  incident = wpos.xyz-cameraPosition;\n" +
-    "  ref = reflect(incident, normal);\n" +
-    "  f_normal = normal;\n" +
+    "  vec3 n = (modelMatrix * vec4(normal, 0.0)).xyz;\n" +
+    "  ref = reflect(incident, n);\n" +
+    "  f_normal = n;\n" +
+    "  f_uv = uv;\n" +
     "}\n";
   fs= "uniform samplerCube cube;\n" +
+    "uniform sampler2D noise;\n" +
     "uniform sampler2D iris;\n" +
+    "uniform float noiseBlend;\n" +
     "varying vec3 incident;\n" +
     "varying vec3 ref;\n" +
     "varying vec3 f_normal;\n" +
+    "varying vec2 f_uv;\n" +
     "void main() {\n" +
     "  float icos = abs(dot(normalize(incident), normalize(f_normal)));\n" +
-    "  vec4 factor = texture2D(iris, vec2(1.0-icos, 0.0));\n" +
+    "  vec2 depth2 = texture2D(noise, f_uv).rg;\n" +
+    "  float depth = mix(depth2.x, depth2.y, noiseBlend);\n" +
+    "  vec4 factor = texture2D(iris, vec2(icos, 1.0 - 0.5 * depth));\n" +
     "  gl_FragColor = textureCube(cube, normalize(ref))*factor;\n" +
-    "  gl_FragColor.a += 0.2;\n" +
+    //"  gl_FragColor.a += 0.1;\n" +
     "}\n";
-  var material = new THREE.ShaderMaterial({
+  noiseBlend = { type: "f", value: 0.0 };
+  material = new THREE.ShaderMaterial({
     uniforms: {
+      noiseBlend: noiseBlend,
       cube: { type: "t", value: cubeTex },
-      iris: { type: "t", value: irisTex }
+      iris: { type: "t", value: irisTex },
+      noise: { type: "t", value: noiseTex }
     },
       vertexShader: vs,
       fragmentShader: fs,
@@ -115,12 +135,16 @@ function addObjectsToScene(){
   material.blending = THREE.CustomBlending;
   material.blendSrc = THREE.OneFactor;
   material.side = THREE.BackSide;
-  var graph1 = new THREE.Mesh(new THREE.SphereGeometry(8, 30, 30), material);
-  scene.add(graph1);
-  var material2 = new THREE.ShaderMaterial({
+  ball = new THREE.Object3D();
+  scene.add(ball);
+  var graph1 = new THREE.Mesh(new THREE.SphereGeometry(8, 50, 25), material);
+  ball.add(graph1);
+  material2 = new THREE.ShaderMaterial({
     uniforms: {
+      noiseBlend: noiseBlend,
       cube: { type: "t", value: cubeTex },
-      iris: { type: "t", value: irisTex }
+      iris: { type: "t", value: irisTex },
+      noise: { type: "t", value: noiseTex }
     },
       vertexShader: vs,
       fragmentShader: fs,
@@ -128,8 +152,8 @@ function addObjectsToScene(){
   material2.transparent = true;
   material2.blending = THREE.CustomBlending;
   material2.blendSrc = THREE.OneFactor;
-  var graph2 = new THREE.Mesh(new THREE.SphereGeometry(8, 30, 30), material2);
-  scene.add(graph2);
+  var graph2 = new THREE.Mesh(new THREE.SphereGeometry(8, 50, 25), material2);
+  ball.add(graph2);
 }
 
 function addLights(){
