@@ -39,7 +39,7 @@ function Init(){
  function animate() 
  {
  	requestAnimationFrame( animate );
-    renderer.setClearColor(new THREE.Color().setRGB(1.0, 1.0, 1.0)); 
+    renderer.setClearColor(new THREE.Color().setRGB(0.0, 0.0, 0.0)); 
 	renderer.Leia_render(scene, camera,undefined,undefined,_holoScreenSize,_camFov,_messageFlag);
  }
 
@@ -76,31 +76,60 @@ function addObjectsToScene(){
     "}\n"
   });
   skyMaterial.side = THREE.BackSide;
-  var sky = new THREE.Mesh(new THREE.SphereGeometry(100, 30, 30), skyMaterial);
+  var sky = new THREE.Mesh(new THREE.SphereGeometry(25, 30, 30), skyMaterial);
+  sky.translateZ(10);
   scene.add(sky);
 
-  //Add your objects here
-  var material = new THREE.ShaderMaterial({
-    uniforms: {
-      cube: { type: "t", value: cubeTex }
-    },
-      vertexShader:
+  var irisTex = THREE.ImageUtils.loadTexture("resource/iris.png");
+  irisTex.format = THREE.RGBAFormat;
+  vs = "varying vec3 incident;\n" +
     "varying vec3 ref;\n" +
+    "varying vec3 f_normal;\n" +
     "void main() {\n" +
     "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n" +
     "  vec4 wpos = modelMatrix * vec4( position, 1.0 );\n" +
-    "  vec3 idir = wpos.xyz-cameraPosition;\n" +
-    "  ref = reflect(idir, normal);\n" +
-    "}\n",
-      fragmentShader:
-    "uniform samplerCube cube;\n" +
+    "  incident = wpos.xyz-cameraPosition;\n" +
+    "  ref = reflect(incident, normal);\n" +
+    "  f_normal = normal;\n" +
+    "}\n";
+  fs= "uniform samplerCube cube;\n" +
+    "uniform sampler2D iris;\n" +
+    "varying vec3 incident;\n" +
     "varying vec3 ref;\n" +
+    "varying vec3 f_normal;\n" +
     "void main() {\n" +
-    "  gl_FragColor = textureCube(cube, normalize(ref));\n" +
-    "}\n",
+    "  float icos = abs(dot(normalize(incident), normalize(f_normal)));\n" +
+    "  vec4 factor = texture2D(iris, vec2(1.0-icos, 0.0));\n" +
+    "  gl_FragColor = textureCube(cube, normalize(ref))*factor;\n" +
+    "  gl_FragColor.a += 0.2;\n" +
+    "}\n";
+  var material = new THREE.ShaderMaterial({
+    uniforms: {
+      cube: { type: "t", value: cubeTex },
+      iris: { type: "t", value: irisTex }
+    },
+      vertexShader: vs,
+      fragmentShader: fs,
   });
-  var graph = new THREE.Mesh(new THREE.SphereGeometry(8, 30, 30), material);
-  scene.add(graph);
+  material.transparent = true;
+  material.blending = THREE.CustomBlending;
+  material.blendSrc = THREE.OneFactor;
+  material.side = THREE.BackSide;
+  var graph1 = new THREE.Mesh(new THREE.SphereGeometry(8, 30, 30), material);
+  scene.add(graph1);
+  var material2 = new THREE.ShaderMaterial({
+    uniforms: {
+      cube: { type: "t", value: cubeTex },
+      iris: { type: "t", value: irisTex }
+    },
+      vertexShader: vs,
+      fragmentShader: fs,
+  });
+  material2.transparent = true;
+  material2.blending = THREE.CustomBlending;
+  material2.blendSrc = THREE.OneFactor;
+  var graph2 = new THREE.Mesh(new THREE.SphereGeometry(8, 30, 30), material2);
+  scene.add(graph2);
 }
 
 function addLights(){
