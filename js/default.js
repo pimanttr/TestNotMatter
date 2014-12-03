@@ -44,25 +44,62 @@ function Init(){
  }
 
 function addObjectsToScene(){
-  //Add your objects here
-  var material = new THREE.ShaderMaterial({
+  var path = "textures/cube/";
+  var format = '.jpg';
+  var urls = [
+      path + 'posx' + format,
+      path + 'negx' + format,
+      path + 'posy' + format,
+      path + 'negy' + format,
+      path + 'posz' + format,
+      path + 'negz' + format
+  ];
+
+  var cubeTex = THREE.ImageUtils.loadTextureCube(urls);
+  cubeTex.format = THREE.RGBFormat;
+
+  var skyMaterial = new THREE.ShaderMaterial({
     uniforms: {
-      color: { type: "c", value: new THREE.Color(0xff0000) }
+      cube: { type: "t", value: cubeTex }
     },
       vertexShader:
     "varying vec3 f_normal;\n" +
     "void main() {\n" +
-    "  f_normal = normalMatrix*normal;\n" +
+    "  f_normal = normal;\n" +
     "  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n" +
     "}\n",
       fragmentShader:
-    "uniform vec3 color;\n" +
+    "uniform samplerCube cube;\n" +
     "varying vec3 f_normal;\n" +
     "void main() {\n" +
-    "  gl_FragColor = vec4(f_normal + color, 1.0);\n" +
+    "  gl_FragColor = textureCube(cube, f_normal);\n" +
+    "}\n"
+  });
+  skyMaterial.side = THREE.BackSide;
+  var sky = new THREE.Mesh(new THREE.SphereGeometry(100, 30, 30), skyMaterial);
+  scene.add(sky);
+
+  //Add your objects here
+  var material = new THREE.ShaderMaterial({
+    uniforms: {
+      cube: { type: "t", value: cubeTex }
+    },
+      vertexShader:
+    "varying vec3 ref;\n" +
+    "void main() {\n" +
+    "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n" +
+    "  vec4 wpos = modelMatrix * vec4( position, 1.0 );\n" +
+    "  vec3 idir = wpos.xyz-cameraPosition;\n" +
+    "  ref = reflect(idir, normal);\n" +
+    "}\n",
+      fragmentShader:
+    "uniform samplerCube cube;\n" +
+    "varying vec3 ref;\n" +
+    "void main() {\n" +
+    "  gl_FragColor = textureCube(cube, normalize(ref));\n" +
     "}\n",
   });
-  var graph = new THREE.Mesh(new THREE.SphereGeometry(8, 30, 10), material);
+  var graph = new THREE.Mesh(new THREE.SphereGeometry(8, 30, 30), material);
   scene.add(graph);
 }
 
