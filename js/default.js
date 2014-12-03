@@ -87,8 +87,12 @@ function addObjectsToScene(){
 
   var irisTex = THREE.ImageUtils.loadTexture("resource/iris.png");
   irisTex.format = THREE.RGBAFormat;
+  irisTex.minFilter = THREE.LinearFilter;
+  irisTex.generateMipmaps = false;
   var noiseTex = THREE.ImageUtils.loadTexture("resource/perlin_noise.png");
   noiseTex.format = THREE.RGBFormat;
+  noiseTex.minFilter = THREE.LinearFilter;
+  noiseTex.generateMipmaps = false;
   noiseTex.wrapS = THREE.RepeatWrapping;
   noiseTex.wrapT = THREE.RepeatWrapping;
   vs = "varying vec3 incident;\n" +
