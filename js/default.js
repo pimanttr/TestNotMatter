@@ -1,6 +1,6 @@
  var windowWidth = window.innerWidth, windowHeight = window.innerHeight;
  var startTime;
- var camera,renderer,scene,ball, noiseBlend;
+ var renderer,holoScreen,scene,ball, noiseBlend;
  window.onload = function (){
     console.log("onload");
     Init();
@@ -11,31 +11,16 @@ function Init() {
   scene = new THREE.Scene();
   startTime = Date.now();
 
-  //setup camera
-  camera = new LeiaCamera();
-  camera.position.copy(new THREE.Vector3(_camPosition.x, _camPosition.y, _camPosition.z));
-  camera.lookAt(new THREE.Vector3(_tarPosition.x, _tarPosition.y, _tarPosition.z));
-  scene.add(camera);
-
-  //setup rendering parameter
-  renderer = new LeiaWebGLRenderer({
-    antialias:true, 
-           renderMode: _renderMode, 
-           shaderMode: _nShaderMode,
-           colorMode : _colorMode,
-           devicePixelRatio: 1 
-  } );
-  renderer.Leia_setSize( windowWidth, windowHeight );
-  document.body.appendChild( renderer.domElement );
+  var leiaDisplayInfo = new LeiaDisplayInfo('https://www.leiainc.com/latest/LeiaCore/config/displayPrototypeSmall.json');
+  holoScreen  = new LeiaHoloScreen(leiaDisplayInfo);
+  renderer    = new LeiaRenderer(leiaDisplayInfo, holoScreen);
+  document.body.appendChild( renderer.renderer.domElement );
 
   //add object to Scene
   addObjectsToScene();
 
   //add Light
   addLights();
-
-  //add Gyro Monitor
-  //addGyroMonitor();
 }
 
 function animate() {
@@ -45,8 +30,7 @@ function animate() {
   ball.setRotationFromEuler(rotation);
   var x = time/5;
   noiseBlend.value = Math.abs((x % 2) - 1);
-  renderer.setClearColor(new THREE.Color().setRGB(0.0, 0.0, 0.0)); 
-  renderer.Leia_render(scene, camera,undefined,undefined,_holoScreenSize,_camFov,_messageFlag);
+  renderer.render(scene, holoScreen);
 }
 
 function addObjectsToScene(){
@@ -120,9 +104,9 @@ function addObjectsToScene(){
     "  float icos = abs(dot(normalize(incident), normalize(f_normal)));\n" +
     "  vec2 depth2 = texture2D(noise, f_uv).rg;\n" +
     "  float depth = mix(depth2.x, depth2.y, noiseBlend);\n" +
-    "  vec4 factor = texture2D(iris, vec2(icos, 1.0 - 0.5 * depth));\n" +
+    "  vec4 factor = texture2D(iris, vec2(icos, 0.95 - 0.5 * depth));\n" +
     "  gl_FragColor = textureCube(cube, normalize(ref))*factor;\n" +
-    //"  gl_FragColor.a += 0.1;\n" +
+    "  gl_FragColor.a += 0.1;\n" +
     "}\n";
   noiseBlend = { type: "f", value: 0.0 };
   material = new THREE.ShaderMaterial({
